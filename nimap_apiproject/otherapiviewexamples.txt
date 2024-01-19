@@ -1,0 +1,223 @@
+urls.py
+ path("token",v1.obtain_auth_token),
+     for class based APIView
+     path('client/',views.client_api.as_view()),
+     path('client/<int:pk>/',views.client_api.as_view()),
+    
+    
+     for function based @api_view
+     path('client/',views.Client_Create),
+     path('client/<int:pk>/',views.Client_Create),
+     path('project/',views.Project_Create),
+     path('project/<int:pk>/',views.Project_Create),
+     path('cd/',views.ClientDetailsView),
+    path('cd/<int:id>',views.ClientDetailsView),
+
+******************************************************************************************  
+views.py
+
+from rest_framework.views import APIView
+from rest_framework.decorators import api_view,permission_classes,authentication_classes
+from django.contrib.auth import login
+from django.contrib import messages
+from django.http import HttpResponseRedirect
+
+
+using classbased API and Function based @api_view
+ class clientdetails_viewset(viewsets.ViewSet):
+     def list(self, request,pk=None):
+         id=pk
+         if id is not None:
+             client=client_model.objects.get(id=id)
+             project=project_model.objects.filter(users=client.created_by)
+             resp=[{
+                 "id":client.id,
+                 "client_name":client.client_name,
+                 'project':[{
+                     "id":i.id,
+                     "name":i.project_name
+                 }for i in project],
+                 "created_at":client.created_at,
+                 "created_by":client.created_by.username,
+                 "update_at":client.updated_at
+             }]
+             return Response(resp)
+         project=project_model.objects.all() 
+         ser=project_serializer(project,many=True)
+
+         return Response(ser.data)
+         
+******************************************************************************************  
+  client api using class based view APIview
+ class client_api(APIView):
+     authentication_classes=[BasicAuthentication]
+     permission_classes=[IsAuthenticated]
+     def get(self,request,format=None,pk=None):
+         id=pk
+         if id is not None:
+             c=client_model.objects.get(id=id)
+             serializer=client_serializer(c)
+             return Response(serializer.data)
+         c=client_model.objects.all()
+         serializer=client_serializer(c,many=True)
+         return Response(serializer.data)
+    
+     def post(self,request,format=None,pk=None):
+         data=request.data
+         c=client_model.objects.filter(client_name=data["client_name"])
+         if not c:
+             client=client_model.objects.create(client_name=data["client_name"],created_by=request.user)
+         else:
+             return Response("client is already exits")
+         return Response("client is created",status=status.HTTP_201_CREATED)
+    
+     def put(self,request,format=None,pk=None):
+         id=pk
+         try:
+             client=client_model.objects.get(id=id)
+         except:
+             return Response("Not client with given id") 
+         serializer=client_serializer(client,data=request.data,partial=True)
+         if serializer.is_valid():
+             client.updated_at=timezone.now()
+             serializer.save()
+             return Response('data Updated')
+         return Response(serializer.errors)
+    
+     def delete(self,request,format=None,pk=None):
+         id=pk
+         try:
+             c=client_model.objects.get(id=id)
+         except:
+             return Response("This client does not exist...")
+         c.delete()
+         return Response("Data Deleted successfully...")
+
+class project_api(APIView):
+     authentication_classes=[BasicAuthentication]
+     permission_classes=[IsAuthenticated]
+     def get(self,request,format=None,pk=None):
+         project=project_model.objects.filter(created_by=request.user)
+         serializer=project_serializer(project,many=True)
+         resp=[{'id':i['id'],"project_name":i['project_name'],"created_by":i['created_by'],'created_at':i['created_at']} for i in serializer.data]
+         return Response(resp)
+    
+     def post(self,request,format=None,pk=None):
+         data=request.data
+         try:
+           user=User.objects.filter(id=data['user'][0]['id'],username=data['user'][0]['name'])
+           if not user:
+               return Response('No User Found with given id', status=status.HTTP_400_BAD_REQUEST)
+         except:
+             return Response('There is no such user wih given id')
+         try:
+           serializer1=client_model.objects.get(id=id)
+         except:
+           return Response('There is no such a client')    
+         project=project_model.objects.create(project_name=data["project_name"],users=User.objects.get(id=data['user'][0]['id']),client=client_model.objects.get(id=id),created_by=request.user)
+    
+        
+ ************************************************************************************************     
+
+
+
+  client api using function based @api_view
+ @api_view(["GET","POST","PUT","DELETE"])
+ @permission_classes([IsAuthenticated])
+ @authentication_classes([BasicAuthentication])
+ def Client_Create(request,pk=None):  
+     if request.method=='GET':
+         id=pk
+         if id is not None:
+             c=client_model.objects.get(id=id)
+             serializer=client_serializer(c)
+             return Response(serializer.data)
+         c=client_model.objects.all()
+         serializer=client_serializer(c,many=True)
+         return Response(serializer.data)
+    
+     if request.method=='POST':
+         data=request.data
+         c=client_model.objects.filter(client_name=data["client_name"])
+         if not c:
+             client=client_model.objects.create(client_name=data["client_name"],created_by=request.user)
+         else:
+             return Response("client is already exits")
+         return Response("client is created",status=status.HTTP_201_CREATED)
+    
+     if request.method=='PUT':
+         id=pk
+         try:
+             client=client_model.objects.get(id=id)
+         except:
+             return Response("Not client with given id")
+            
+         serializer=client_serializer(client,data=request.data,partial=True)
+         if serializer.is_valid():
+             client.updated_at=timezone.now()
+             serializer.save()
+             return Response('data Updated')
+         return Response(serializer.errors)
+
+     if request.method=='DELETE':
+         id=pk
+         try:
+             c=client_model.objects.get(id=id)
+         except:
+             return Response("This client does not exist...")
+         c.delete()
+         return Response("Data Deleted successfully...")
+    
+
+ @api_view(["GET","POST"])
+  @permission_classes([IsAuthenticated])
+  @authentication_classes(BasicAuthentication)
+ def Project_Create(request,pk=None):  
+     if request.method=='GET':
+         project=project_model.objects.filter(created_by=request.user)
+         serializer=project_serializer(project,many=True)
+         resp=[{'id':i['id'],"project_name":i['project_name'],"created_by":i['created_by'],'created_at':i['created_at']} for i in serializer.data]
+         return Response(resp)
+
+     if request.method=='POST':
+         data=request.data
+         try:
+           user=User.objects.filter(id=data['user'][0]['id'],username=data['user'][0]['name'])
+           if not user:
+               return Response('No User Found with given id', status=status.HTTP_400_BAD_REQUEST)
+         except:
+             return Response('There is no such user wih given id')
+         try:
+           serializer1=client_model.objects.get(id=id)
+         except:
+           return Response('There is no such a client')    
+         project=project_model.objects.create(project_name=data["project_name"],users=User.objects.get(id=data['user']['id']),client=client_model.objects.get(id=id),created_by=request.user)
+    
+        
+******************************************************************************************  
+      
+@api_view(['GET'])
+def ClientDetailsView(request,id=None):
+        if id is not None:
+            client=client_model.objects.get(id=id)
+            project=project_model.objects.filter(users=client.created_by)
+            resp=[{
+                "id":client.id,
+                "client_name":client.client_name,
+                'project':[{
+                    "id":i.id,
+                    "name":i.project_name
+                }for i in project],
+                "created_at":client.created_at,
+                "created_by":client.created_by.username,
+                "update_at":client.updated_at
+            }]
+            return Response(resp)
+        project=project_model.objects.all() 
+        ser=project_serializer(project,many=True)
+        return Response(ser.data)
+
+
+
+
+
